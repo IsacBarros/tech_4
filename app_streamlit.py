@@ -6,6 +6,7 @@ import os
 import plotly.express as px
 import plotly.graph_objects as go
 from collections import Counter
+from sklearn.base import BaseEstimator, TransformerMixin
 
 # --- CONFIGURAÇÃO ---
 MODEL_FILE = 'obesity_prediction_model_pipeline.pkl'
@@ -13,6 +14,24 @@ ENCODER_FILE = 'label_encoder.pkl'
 # Usando o nome do arquivo mais recente fornecido
 DATA_FILE = 'Obesity_normalizado_ok.csv' 
 
+# --- CORREÇÃO DE ERRO NO DEPLOY ---
+# O Streamlit/Joblib/Pickle precisa desta definição de classe no módulo de deploy (app_streamlit.py)
+# para que o objeto customizado (BMICalculator) possa ser carregado corretamente.
+
+class BMICalculator(BaseEstimator, TransformerMixin):
+    """Calcula o IMC (BMI) e substitui as colunas Peso e Altura originais."""
+    def fit(self, X, y=None):
+        return self
+    
+    def transform(self, X):
+        X_copy = X.copy()
+        # Cálculo do IMC: Peso (kg) / Altura (m)^2
+        # As colunas Height e Weight devem ser numéricas.
+        X_copy['BMI'] = X_copy['Weight'] / (X_copy['Height'] ** 2)
+        # Remove Height e Weight originais para usar o BMI como feature principal
+        # NOTE: O ColumnTransformer do pipeline irá processar as colunas remanescentes (BMI, Age, etc.)
+        return X_copy.drop(columns=['Height', 'Weight'])
+    
 # --- 1. Carregamento de Recursos ---
 @st.cache_data
 def load_resources():
@@ -21,6 +40,7 @@ def load_resources():
     if not os.path.exists(MODEL_FILE) or not os.path.exists(ENCODER_FILE):
         return None, None, None
 
+    # O joblib.load agora tem a definição da classe BMICalculator no escopo
     model_pipeline = joblib.load(MODEL_FILE)
     le = joblib.load(ENCODER_FILE)
     
@@ -31,7 +51,7 @@ def load_resources():
             df = pd.read_csv(DATA_FILE, sep=';')
             
         # Seleciona as colunas originais e a coluna alvo ('Obesity')
-        original_cols = [col for col in df.columns if not col.startswith('N_') and col != 'Obesity']
+        original_cols = [col for col col in df.columns if not col.startswith('N_') and col != 'Obesity']
         df = df[original_cols + ['Obesity']]
         
         # Trata o separador decimal e converte para numérico
@@ -60,7 +80,7 @@ def load_resources():
         
         return model_pipeline, le, df
     except Exception as e:
-        st.error(f"Erro ao carregar ou limpar os dados para o dashboard. Verifique o arquivo '{DATA_FILE}'. Erro: {e}")
+        # st.error(f"Erro ao carregar ou limpar os dados para o dashboard. Verifique o arquivo '{DATA_FILE}'. Erro: {e}")
         return model_pipeline, le, pd.DataFrame()
 
 model_pipeline, le, df_raw = load_resources()
@@ -180,7 +200,7 @@ with tab2:
         with colA:
             st.subheader("1. Distribuição de Casos por Nível de Obesidade")
             fig_dist = px.bar(
-                df_raw['Obesity_Class'].value_counts().reset_index(name='count'), # Adicionado nome explícito para o index resetado
+                df_raw['Obesity_Class'].value_counts().reset_index(name='count'),
                 x='count', y='Obesity_Class', orientation='h',
                 title='Prevalência na Base de Dados',
                 color='Obesity_Class',
@@ -208,7 +228,6 @@ with tab2:
         # 3. Consumo de Álcool (CALC) vs. Obesidade
         with colC:
             st.subheader("3. Consumo de Álcool (CALC) por Nível de Obesidade")
-            # Correção na agregação para compatibilidade com Plotly
             df_calc = df_raw.groupby('Obesity_Class')['CALC'].value_counts(normalize=True).mul(100).rename('Percentual').reset_index()
             
             fig_calc = px.bar(
