@@ -6,7 +6,9 @@ import os
 import plotly.express as px
 import plotly.graph_objects as go
 from collections import Counter
-from sklearn.base import BaseEstimator, TransformerMixin
+# Importa a classe customizada do novo módulo
+from custom_features import BMICalculator 
+from sklearn.base import BaseEstimator, TransformerMixin # Mantido para compatibilidade, mas o import principal é da classe
 
 # --- CONFIGURAÇÃO ---
 MODEL_FILE = 'obesity_prediction_model_pipeline.pkl'
@@ -14,24 +16,6 @@ ENCODER_FILE = 'label_encoder.pkl'
 # Usando o nome do arquivo mais recente fornecido
 DATA_FILE = 'Obesity_normalizado_ok.csv' 
 
-# --- CORREÇÃO DE ERRO NO DEPLOY ---
-# O Streamlit/Joblib/Pickle precisa desta definição de classe no módulo de deploy (app_streamlit.py)
-# para que o objeto customizado (BMICalculator) possa ser carregado corretamente.
-
-class BMICalculator(BaseEstimator, TransformerMixin):
-    """Calcula o IMC (BMI) e substitui as colunas Peso e Altura originais."""
-    def fit(self, X, y=None):
-        return self
-    
-    def transform(self, X):
-        X_copy = X.copy()
-        # Cálculo do IMC: Peso (kg) / Altura (m)^2
-        # As colunas Height e Weight devem ser numéricas.
-        X_copy['BMI'] = X_copy['Weight'] / (X_copy['Height'] ** 2)
-        # Remove Height e Weight originais para usar o BMI como feature principal
-        # NOTE: O ColumnTransformer do pipeline irá processar as colunas remanescentes (BMI, Age, etc.)
-        return X_copy.drop(columns=['Height', 'Weight'])
-    
 # --- 1. Carregamento de Recursos ---
 @st.cache_data
 def load_resources():
@@ -40,7 +24,7 @@ def load_resources():
     if not os.path.exists(MODEL_FILE) or not os.path.exists(ENCODER_FILE):
         return None, None, None
 
-    # O joblib.load agora tem a definição da classe BMICalculator no escopo
+    # O joblib.load agora referencia a classe importada do custom_features.py
     model_pipeline = joblib.load(MODEL_FILE)
     le = joblib.load(ENCODER_FILE)
     
@@ -251,4 +235,3 @@ with tab2:
             fig_tue.update_layout(xaxis_title="Nível de Obesidade", yaxis_title="TUE (0-3)")
             st.plotly_chart(fig_tue, use_container_width=True)
             st.markdown("**Insight de Risco:** O aumento do tempo de tela (TUE) está associado à inatividade (sedentarismo), um fator de risco clássico. Pacientes com Obesidade II e III tendem a ter um tempo de tela mais elevado, exigindo foco na redução do comportamento sedentário.")
-
