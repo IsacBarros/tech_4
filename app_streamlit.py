@@ -51,7 +51,7 @@ def load_resources():
             df = pd.read_csv(DATA_FILE, sep=';')
             
         # Seleciona as colunas originais e a coluna alvo ('Obesity')
-        original_cols = [col for col col in df.columns if not col.startswith('N_') and col != 'Obesity']
+        original_cols = [col for col in df.columns if not col.startswith('N_') and col != 'Obesity']
         df = df[original_cols + ['Obesity']]
         
         # Trata o separador decimal e converte para numérico
@@ -251,3 +251,4 @@ with tab2:
             fig_tue.update_layout(xaxis_title="Nível de Obesidade", yaxis_title="TUE (0-3)")
             st.plotly_chart(fig_tue, use_container_width=True)
             st.markdown("**Insight de Risco:** O aumento do tempo de tela (TUE) está associado à inatividade (sedentarismo), um fator de risco clássico. Pacientes com Obesidade II e III tendem a ter um tempo de tela mais elevado, exigindo foco na redução do comportamento sedentário.")
+
